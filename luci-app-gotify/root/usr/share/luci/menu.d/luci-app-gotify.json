@@ -1,0 +1,16 @@
+{
+	"admin/services/gotify": {
+		"title": "Gotify",
+		"order": 90,
+		"action": {
+			"type": "view",
+			"path": "gotify/main"
+		},
+		"depends": {
+			"acl": [ "luci-app-gotify" ],
+			"fs": {
+				"/etc/init.d/gotify": "executable"
+			}
+		}
+	}
+}

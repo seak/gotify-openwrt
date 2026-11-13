@@ -1,0 +1,300 @@
+#!/bin/sh
+# rpcd plugin: luci.gotify — read/write /etc/gotify/server.env, service, WAN firewall rule.
+
+CONF=/etc/gotify/server.env
+INIT=/etc/init.d/gotify
+FW_SECTION=gotify
+
+json_escape() {
+	printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/	/\\t/g'
+}
+
+strip_cr() {
+	printf '%s' "$1" | tr -d '\r'
+}
+
+env_get() {
+	# Usage: env_get KEY [default]
+	local key="$1"
+	local def="${2:-}"
+	local line val
+	[ -f "$CONF" ] || {
+		printf '%s' "$def"
+		return
+	}
+	line="$(grep -E "^${key}=" "$CONF" 2>/dev/null | tail -n 1)" || true
+	[ -n "$line" ] || {
+		printf '%s' "$def"
+		return
+	}
+	val="${line#*=}"
+	val="$(strip_cr "$val")"
+	case "$val" in
+	\"*\")
+		val="${val#\"}"
+		val="${val%\"}"
+		;;
+	esac
+	printf '%s' "$val"
+}
+
+env_set_key() {
+	# Usage: env_set_key KEY VALUE — update or append; preserve other keys; LF only.
+	local key="$1"
+	local val="$2"
+	local tmp line found=0
+	tmp="$(mktemp)" || return 1
+	if [ -f "$CONF" ]; then
+		while IFS= read -r line || [ -n "$line" ]; do
+			line="$(strip_cr "$line")"
+			case "$line" in
+			"${key}="*)
+				printf '%s=%s\n' "$key" "$val" >>"$tmp"
+				found=1
+				;;
+			*)
+				printf '%s\n' "$line" >>"$tmp"
+				;;
+			esac
+		done <"$CONF"
+	fi
+	[ "$found" = 1 ] || printf '%s=%s\n' "$key" "$val" >>"$tmp"
+	mv -f "$tmp" "$CONF"
+	chmod 0644 "$CONF" 2>/dev/null || true
+}
+
+bool_norm() {
+	case "$1" in
+	1 | true | True | TRUE | yes | on) printf 'true' ;;
+	*) printf 'false' ;;
+	esac
+}
+
+registration_to_env() {
+	case "$(bool_norm "$1")" in
+	true) printf 'true' ;;
+	*) printf 'false' ;;
+	esac
+}
+
+fw_wan_access() {
+	local en
+	[ "$(uci -q get firewall.${FW_SECTION} 2>/dev/null)" = "rule" ] || {
+		printf 'false'
+		return
+	}
+	en="$(uci -q get firewall.${FW_SECTION}.enabled 2>/dev/null)" || en=
+	case "$en" in
+	0 | false | off | '') printf 'false' ;;
+	*) printf 'true' ;;
+	esac
+}
+
+fw_sync() {
+	# Usage: fw_sync wan_access port
+	local want="$1"
+	local port="$2"
+	local enabled
+
+	case "$(bool_norm "$want")" in
+	true) enabled=1 ;;
+	*) enabled=0 ;;
+	esac
+
+	[ -n "$port" ] || port="$(env_get GOTIFY_SERVER_PORT 8080)"
+
+	if [ "$enabled" = 0 ] && [ "$(uci -q get firewall.${FW_SECTION} 2>/dev/null)" != "rule" ]; then
+		return 0
+	fi
+
+	uci -q batch <<-EOF
+		set firewall.${FW_SECTION}=rule
+		set firewall.${FW_SECTION}.name='Allow-Gotify'
+		set firewall.${FW_SECTION}.src='wan'
+		set firewall.${FW_SECTION}.proto='tcp'
+		set firewall.${FW_SECTION}.dest_port='${port}'
+		set firewall.${FW_SECTION}.target='ACCEPT'
+		set firewall.${FW_SECTION}.enabled='${enabled}'
+	EOF
+	uci -q commit firewall
+	/etc/init.d/firewall reload >/dev/null 2>&1 || true
+}
+
+service_enabled() {
+	[ -x "$INIT" ] || {
+		printf 'false'
+		return
+	}
+	if "$INIT" enabled >/dev/null 2>&1; then
+		printf 'true'
+	else
+		printf 'false'
+	fi
+}
+
+service_running() {
+	[ -x "$INIT" ] || {
+		printf 'false'
+		return
+	}
+	if "$INIT" running >/dev/null 2>&1; then
+		printf 'true'
+	elif pidof gotify >/dev/null 2>&1; then
+		printf 'true'
+	else
+		printf 'false'
+	fi
+}
+
+read_input() {
+	local data="" chunk
+	while IFS= read -r chunk || [ -n "$chunk" ]; do
+		data="${data}${chunk}"
+	done
+	printf '%s' "$data"
+}
+
+json_get() {
+	# Usage: json_get JSON KEY — extract string / bool / int (flat object only).
+	local json="$1"
+	local key="$2"
+	local val
+	val="$(printf '%s' "$json" | sed -n -e 's/.*"'"$key"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+	if [ -n "$val" ]; then
+		printf '%s' "$val"
+		return
+	fi
+	val="$(printf '%s' "$json" | sed -n -e 's/.*"'"$key"'"[[:space:]]*:[[:space:]]*\(true\|false\|[0-9][0-9]*\).*/\1/p' | head -n 1)"
+	printf '%s' "$val"
+}
+
+json_has() {
+	# Usage: json_has JSON KEY — exit 0 if key present.
+	local json="$1"
+	local key="$2"
+	printf '%s' "$json" | grep -q "\"${key}\""
+}
+
+emit_config() {
+	local port listen loglevel registration wan running enabled
+	port="$(env_get GOTIFY_SERVER_PORT 8080)"
+	listen="$(env_get GOTIFY_SERVER_LISTENADDR)"
+	loglevel="$(env_get GOTIFY_LOGLEVEL info)"
+	registration="$(env_get GOTIFY_REGISTRATION false)"
+	wan="$(fw_wan_access)"
+	running="$(service_running)"
+	enabled="$(service_enabled)"
+
+	case "$(bool_norm "$registration")" in
+	true) registration=true ;;
+	*) registration=false ;;
+	esac
+
+	printf '{'
+	printf '"port":"%s",' "$(json_escape "$port")"
+	printf '"listen_addr":"%s",' "$(json_escape "$listen")"
+	printf '"loglevel":"%s",' "$(json_escape "$loglevel")"
+	printf '"registration":%s,' "$registration"
+	printf '"wan_access":%s,' "$wan"
+	printf '"running":%s,' "$running"
+	printf '"enabled":%s' "$enabled"
+	printf '}\n'
+}
+
+case "$1" in
+list)
+	printf '{'
+	printf '"get_config":{},'
+	printf '"set_config":{"port":"str","listen_addr":"str","loglevel":"str","registration":"str","wan_access":"str","restart":"str"},'
+	printf '"service":{"action":"str"}'
+	printf '}\n'
+	;;
+call)
+	case "$2" in
+	get_config)
+		read_input >/dev/null
+		emit_config
+		;;
+	set_config)
+		input="$(read_input)"
+		port="$(json_get "$input" port)"
+		listen="$(json_get "$input" listen_addr)"
+		loglevel="$(json_get "$input" loglevel)"
+		registration="$(json_get "$input" registration)"
+		wan="$(json_get "$input" wan_access)"
+		restart="$(json_get "$input" restart)"
+
+		[ -n "$port" ] || port="$(env_get GOTIFY_SERVER_PORT 8080)"
+		case "$port" in
+		*[!0-9]* | '')
+			printf '{"error":"invalid port"}\n'
+			exit 1
+			;;
+		esac
+		if [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
+			printf '{"error":"invalid port"}\n'
+			exit 1
+		fi
+
+		[ -n "$loglevel" ] || loglevel="$(env_get GOTIFY_LOGLEVEL info)"
+		case "$loglevel" in
+		debug | info | warning | error | fatal) ;;
+		*)
+			printf '{"error":"invalid loglevel"}\n'
+			exit 1
+			;;
+		esac
+
+		# listen_addr may intentionally be empty
+		if ! json_has "$input" listen_addr; then
+			listen="$(env_get GOTIFY_SERVER_LISTENADDR)"
+		fi
+
+		[ -n "$registration" ] || registration="$(env_get GOTIFY_REGISTRATION false)"
+		registration="$(registration_to_env "$registration")"
+
+		[ -n "$wan" ] || wan="$(fw_wan_access)"
+
+		mkdir -p "$(dirname "$CONF")"
+		[ -f "$CONF" ] || touch "$CONF"
+
+		env_set_key GOTIFY_SERVER_PORT "$port"
+		env_set_key GOTIFY_SERVER_LISTENADDR "$listen"
+		env_set_key GOTIFY_LOGLEVEL "$loglevel"
+		env_set_key GOTIFY_REGISTRATION "$registration"
+
+		fw_sync "$wan" "$port"
+
+		case "$(bool_norm "${restart:-true}")" in
+		true)
+			[ -x "$INIT" ] && "$INIT" restart >/dev/null 2>&1 || true
+			;;
+		esac
+
+		emit_config
+		;;
+	service)
+		input="$(read_input)"
+		action="$(json_get "$input" action)"
+		[ -x "$INIT" ] || {
+			printf '{"error":"init missing"}\n'
+			exit 1
+		}
+		case "$action" in
+		start | stop | restart | enable | disable | reload)
+			"$INIT" "$action" >/dev/null 2>&1 || true
+			;;
+		*)
+			printf '{"error":"invalid action"}\n'
+			exit 1
+			;;
+		esac
+		emit_config
+		;;
+	*)
+		printf '{"error":"unknown method"}\n'
+		exit 1
+		;;
+	esac
+	;;
+esac

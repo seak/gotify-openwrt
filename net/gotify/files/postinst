@@ -1,0 +1,37 @@
+#!/bin/sh
+# shellcheck disable=SC2034
+[ -n "${IPKG_INSTROOT}" ] && exit 0
+
+CONF=/etc/gotify/server.env
+DATADIR=/etc/gotify/data
+INIT=/etc/init.d/gotify
+
+mkdir -p "$DATADIR/images" "$DATADIR/plugins"
+
+# Ensure scripts are executable (defensive; packaging should already set 0755).
+[ -f "$INIT" ] && chmod 0755 "$INIT"
+[ -f /usr/lib/opkg/info/gotify.postinst ] && chmod 0755 /usr/lib/opkg/info/gotify.postinst 2>/dev/null || true
+
+# Migrate paths from older packages that used /var/lib/gotify (-> /tmp on OpenWrt).
+if [ -f "$CONF" ]; then
+	sed -i \
+		-e 's|/var/lib/gotify|/etc/gotify/data|g' \
+		-e 's|/tmp/lib/gotify|/etc/gotify/data|g' \
+		"$CONF"
+fi
+
+# Best-effort move of any data left on tmpfs from a previous run.
+if [ -d /tmp/lib/gotify ] && [ ! -f "$DATADIR/gotify.db" ]; then
+	cp -a /tmp/lib/gotify/. "$DATADIR/" 2>/dev/null || true
+fi
+if [ -d /var/lib/gotify ] && [ ! -f "$DATADIR/gotify.db" ]; then
+	cp -a /var/lib/gotify/. "$DATADIR/" 2>/dev/null || true
+fi
+
+# Enable + start so LuCI Startup does not show "Disabled".
+if [ -x "$INIT" ]; then
+	"$INIT" enable
+	"$INIT" restart 2>/dev/null || "$INIT" start
+fi
+
+exit 0

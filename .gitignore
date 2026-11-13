@@ -1,0 +1,8 @@
+bin/
+build/
+graphify-out/
+__pycache__/
+*.py[cod]
+*.lmo
+.DS_Store
+Thumbs.db

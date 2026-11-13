@@ -1,0 +1,71 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: \n"
+
+msgid "Gotify"
+msgstr ""
+
+msgid "Manage the Gotify push notification service. Apps, clients, and messages stay in the Gotify Web UI. Database and image paths are fixed by the package init script."
+msgstr ""
+
+msgid "Service"
+msgstr ""
+
+msgid "Running"
+msgstr ""
+
+msgid "Start on boot"
+msgstr ""
+
+msgid "Yes"
+msgstr ""
+
+msgid "No"
+msgstr ""
+
+msgid "Gotify Web UI"
+msgstr ""
+
+msgid "Start"
+msgstr ""
+
+msgid "Stop"
+msgstr ""
+
+msgid "Enable on boot"
+msgstr ""
+
+msgid "Enable"
+msgstr ""
+
+msgid "Disable on boot"
+msgstr ""
+
+msgid "Disable"
+msgstr ""
+
+msgid "Port"
+msgstr ""
+
+msgid "Listen address"
+msgstr ""
+
+msgid "empty = all addresses"
+msgstr ""
+
+msgid "Log level"
+msgstr ""
+
+msgid "Allow registration"
+msgstr ""
+
+msgid "Allow WAN access (firewall)"
+msgstr ""
+
+msgid "WAN TCP accept rule for the Gotify port. Off by default; does not change the Gotify package itself."
+msgstr ""
+
+msgid "Configuration saved and service restarted."
+msgstr ""
