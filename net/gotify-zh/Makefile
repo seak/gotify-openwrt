@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=gotify-zh
 PKG_VERSION:=$(shell tr -d ' \t\r\n' < $(CURDIR)/../../VERSION 2>/dev/null || echo 3.1.1)
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/gotify/server.git

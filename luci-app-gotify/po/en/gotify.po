@@ -4,29 +4,17 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Language: en\n"
 
-msgid "Gotify"
-msgstr "Gotify"
+msgid "Gotify Server"
+msgstr "Gotify Server"
 
-msgid "Manage the Gotify push notification service. Apps, clients, and messages stay in the Gotify Web UI. Database and image paths are fixed by the package init script."
-msgstr "Manage the Gotify push notification service. Apps, clients, and messages stay in the Gotify Web UI. Database and image paths are fixed by the package init script."
+msgid "Manage the Gotify Server push notification service. Apps, clients, and messages stay in the Gotify Server Web UI. Database and image paths are fixed by the package init script."
+msgstr "Manage the Gotify Server push notification service. Apps, clients, and messages stay in the Gotify Server Web UI. Database and image paths are fixed by the package init script."
 
 msgid "Service"
 msgstr "Service"
 
-msgid "Running"
-msgstr "Running"
-
-msgid "Start on boot"
-msgstr "Start on boot"
-
-msgid "Yes"
-msgstr "Yes"
-
-msgid "No"
-msgstr "No"
-
-msgid "Gotify Web UI"
-msgstr "Gotify Web UI"
+msgid "Gotify Server Web UI"
+msgstr "Gotify Server Web UI"
 
 msgid "Start"
 msgstr "Start"
@@ -34,17 +22,17 @@ msgstr "Start"
 msgid "Stop"
 msgstr "Stop"
 
-msgid "Enable on boot"
-msgstr "Enable on boot"
-
 msgid "Enable"
 msgstr "Enable"
 
-msgid "Disable on boot"
-msgstr "Disable on boot"
-
 msgid "Disable"
 msgstr "Disable"
+
+msgid "Service status Start/Stop (current status: %s)"
+msgstr "Service status Start/Stop (current status: %s)"
+
+msgid "Start on boot Enable/Disable (current status: %s)"
+msgstr "Start on boot Enable/Disable (current status: %s)"
 
 msgid "Port"
 msgstr "Port"
@@ -58,14 +46,32 @@ msgstr "empty = all addresses"
 msgid "Log level"
 msgstr "Log level"
 
-msgid "Allow registration"
-msgstr "Allow registration"
+msgid "info (default)"
+msgstr "info (default)"
+
+msgid "Allow new user registration"
+msgstr "Allow new user registration"
 
 msgid "Allow WAN access (firewall)"
 msgstr "Allow WAN access (firewall)"
 
-msgid "WAN TCP accept rule for the Gotify port. Off by default; does not change the Gotify package itself."
-msgstr "WAN TCP accept rule for the Gotify port. Off by default; does not change the Gotify package itself."
+msgid "WAN TCP accept rule for the Gotify Server port. Off by default; does not change the Gotify Server package itself."
+msgstr "WAN TCP accept rule for the Gotify Server port. Off by default; does not change the Gotify Server package itself."
 
 msgid "Configuration saved and service restarted."
 msgstr "Configuration saved and service restarted."
+
+msgid "Configuration file"
+msgstr "Configuration file"
+
+msgid "/etc/gotify/server.env — edit directly; data paths remain forced by the init script."
+msgstr "/etc/gotify/server.env — edit directly; data paths remain forced by the init script."
+
+msgid "File contents"
+msgstr "File contents"
+
+msgid "Save file"
+msgstr "Save file"
+
+msgid "Configuration file saved and service restarted."
+msgstr "Configuration file saved and service restarted."

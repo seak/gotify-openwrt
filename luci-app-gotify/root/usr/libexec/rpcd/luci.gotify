@@ -6,7 +6,11 @@ INIT=/etc/init.d/gotify
 FW_SECTION=gotify
 
 json_escape() {
-	printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/	/\\t/g'
+	# Escape for JSON string values; preserve multiline as \n.
+	printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/	/\\t/g' -e 's/\r//g' | awk '
+		NR > 1 { printf "\\n" }
+		{ printf "%s", $0 }
+	'
 }
 
 strip_cr() {
@@ -176,7 +180,7 @@ json_has() {
 }
 
 emit_config() {
-	local port listen loglevel registration wan running enabled
+	local port listen loglevel registration wan running enabled env_content
 	port="$(env_get GOTIFY_SERVER_PORT 8080)"
 	listen="$(env_get GOTIFY_SERVER_LISTENADDR)"
 	loglevel="$(env_get GOTIFY_LOGLEVEL info)"
@@ -184,6 +188,11 @@ emit_config() {
 	wan="$(fw_wan_access)"
 	running="$(service_running)"
 	enabled="$(service_enabled)"
+	if [ -f "$CONF" ]; then
+		env_content="$(cat "$CONF")"
+	else
+		env_content=""
+	fi
 
 	case "$(bool_norm "$registration")" in
 	true) registration=true ;;
@@ -197,7 +206,8 @@ emit_config() {
 	printf '"registration":%s,' "$registration"
 	printf '"wan_access":%s,' "$wan"
 	printf '"running":%s,' "$running"
-	printf '"enabled":%s' "$enabled"
+	printf '"enabled":%s,' "$enabled"
+	printf '"env_content":"%s"' "$(json_escape "$env_content")"
 	printf '}\n'
 }
 
@@ -206,6 +216,7 @@ list)
 	printf '{'
 	printf '"get_config":{},'
 	printf '"set_config":{"port":"str","listen_addr":"str","loglevel":"str","registration":"str","wan_access":"str","restart":"str"},'
+	printf '"set_env":{"content":"str","restart":"str"},'
 	printf '"service":{"action":"str"}'
 	printf '}\n'
 	;;
@@ -213,6 +224,43 @@ call)
 	case "$2" in
 	get_config)
 		read_input >/dev/null
+		emit_config
+		;;
+	set_env)
+		input="$(read_input)"
+		if [ -f /usr/share/libubox/jshn.sh ]; then
+			# shellcheck source=/dev/null
+			. /usr/share/libubox/jshn.sh
+			json_load "$input" || {
+				printf '{"error":"invalid json"}\n'
+				exit 1
+			}
+			json_get_var content content
+			json_get_var restart restart
+		else
+			content="$(json_get "$input" content)"
+			restart="$(json_get "$input" restart)"
+		fi
+
+		mkdir -p "$(dirname "$CONF")"
+		tmp="$(mktemp)" || {
+			printf '{"error":"mktemp failed"}\n'
+			exit 1
+		}
+		# Normalize CRLF → LF; ensure trailing newline for dotenv readers.
+		printf '%s' "$content" | tr -d '\r' >"$tmp"
+		if [ -s "$tmp" ] && [ "$(tail -c1 "$tmp" | wc -l)" -eq 0 ]; then
+			printf '\n' >>"$tmp"
+		fi
+		mv -f "$tmp" "$CONF"
+		chmod 0644 "$CONF" 2>/dev/null || true
+
+		case "$(bool_norm "${restart:-true}")" in
+		true)
+			[ -x "$INIT" ] && "$INIT" restart >/dev/null 2>&1 || true
+			;;
+		esac
+
 		emit_config
 		;;
 	set_config)

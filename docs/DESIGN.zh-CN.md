@@ -29,7 +29,7 @@
 ### 版本
 
 - 仅使用本仓库的 `VERSION` 文件（可用环境变量覆盖）；缺少版本则构建失败——不会生成 `0.0.0-unknown`
-- 软件包名：`gotify_${VERSION}-${PKG_RELEASE}_${PKG_ARCH}.ipk` 或 `gotify-zh_…`（当前 `PKG_RELEASE=1`）
+- 软件包名：`gotify_${VERSION}-${PKG_RELEASE}_${PKG_ARCH}.ipk` 或 `gotify-zh_…`（当前 `PKG_RELEASE=2`）
 - 注入：`main.Version` / `Commit` / `BuildDate` / `Mode=prod`
 - 在原生构建上用 `gotify version` 校验，或在交叉构建上检查嵌入字符串（不要依赖 Go 1.26 的 `go version -m` 列出 `-X`）
 

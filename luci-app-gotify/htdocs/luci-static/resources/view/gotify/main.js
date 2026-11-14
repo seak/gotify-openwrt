@@ -17,6 +17,13 @@ var callSetConfig = rpc.declare({
 	expect: {}
 });
 
+var callSetEnv = rpc.declare({
+	object: 'luci.gotify',
+	method: 'set_env',
+	params: ['content', 'restart'],
+	expect: {}
+});
+
 var callService = rpc.declare({
 	object: 'luci.gotify',
 	method: 'service',
@@ -49,67 +56,44 @@ return view.extend({
 				loglevel: cfg.loglevel || 'info',
 				registration: asFlag(cfg.registration),
 				wan_access: asFlag(cfg.wan_access)
+			},
+			env: {
+				content: cfg.env_content || ''
 			}
 		};
 
-		var m = new form.JSONMap(formdata, _('Gotify'),
-			_('Manage the Gotify push notification service. Apps, clients, and messages stay in the Gotify Web UI. Database and image paths are fixed by the package init script.'));
+		var m = new form.JSONMap(formdata, _('Gotify Server'),
+			_('Manage the Gotify Server push notification service. Apps, clients, and messages stay in the Gotify Server Web UI. Database and image paths are fixed by the package init script.'));
 
 		var s = m.section(form.NamedSection, 'main', 'gotify', _('Service'));
 
-		var o = s.option(form.DummyValue, '_running', _('Running'));
-		o.cfgvalue = function () {
-			return cfg.running ? _('Yes') : _('No');
-		};
-
-		o = s.option(form.DummyValue, '_enabled', _('Start on boot'));
-		o.cfgvalue = function () {
-			return cfg.enabled ? _('Yes') : _('No');
-		};
-
-		o = s.option(form.DummyValue, '_link', _('Gotify Web UI'));
+		var o = s.option(form.DummyValue, '_link', _('Gotify Server Web UI'));
 		o.rawhtml = true;
 		o.cfgvalue = function () {
 			var url = webUiUrl(formdata.main.port || cfg.port || 8080);
 			return '<a href="%s" target="_blank" rel="noopener">%s</a>'.format(url, url);
 		};
 
-		o = s.option(form.Button, '_start', _('Start'));
-		o.inputtitle = _('Start');
-		o.inputstyle = 'action';
+		var svcStatus = cfg.running ? _('Start') : _('Stop');
+		o = s.option(form.Button, '_svc',
+			_('Service status Start/Stop (current status: %s)').format(svcStatus));
+		o.inputtitle = cfg.running ? _('Stop') : _('Start');
+		o.inputstyle = cfg.running ? 'remove' : 'action';
 		o.onclick = function (ev) {
 			ev.preventDefault();
-			return callService('start').then(function () {
+			return callService(cfg.running ? 'stop' : 'start').then(function () {
 				location.reload();
 			});
 		};
 
-		o = s.option(form.Button, '_stop', _('Stop'));
-		o.inputtitle = _('Stop');
-		o.inputstyle = 'remove';
+		var bootStatus = cfg.enabled ? _('Enable') : _('Disable');
+		o = s.option(form.Button, '_boot',
+			_('Start on boot Enable/Disable (current status: %s)').format(bootStatus));
+		o.inputtitle = cfg.enabled ? _('Disable') : _('Enable');
+		o.inputstyle = cfg.enabled ? 'reset' : 'apply';
 		o.onclick = function (ev) {
 			ev.preventDefault();
-			return callService('stop').then(function () {
-				location.reload();
-			});
-		};
-
-		o = s.option(form.Button, '_enable', _('Enable on boot'));
-		o.inputtitle = _('Enable');
-		o.inputstyle = 'apply';
-		o.onclick = function (ev) {
-			ev.preventDefault();
-			return callService('enable').then(function () {
-				location.reload();
-			});
-		};
-
-		o = s.option(form.Button, '_disable', _('Disable on boot'));
-		o.inputtitle = _('Disable');
-		o.inputstyle = 'reset';
-		o.onclick = function (ev) {
-			ev.preventDefault();
-			return callService('disable').then(function () {
+			return callService(cfg.enabled ? 'disable' : 'enable').then(function () {
 				location.reload();
 			});
 		};
@@ -124,19 +108,42 @@ return view.extend({
 
 		o = s.option(form.ListValue, 'loglevel', _('Log level'));
 		o.value('debug', 'debug');
-		o.value('info', 'info');
+		o.value('info', _('info (default)'));
 		o.value('warning', 'warning');
 		o.value('error', 'error');
 		o.value('fatal', 'fatal');
 
-		o = s.option(form.Flag, 'registration', _('Allow registration'));
+		o = s.option(form.Flag, 'registration', _('Allow new user registration'));
 		o.rmempty = false;
 		o.default = '0';
 
 		o = s.option(form.Flag, 'wan_access', _('Allow WAN access (firewall)'));
-		o.description = _('WAN TCP accept rule for the Gotify port. Off by default; does not change the Gotify package itself.');
+		o.description = _('WAN TCP accept rule for the Gotify Server port. Off by default; does not change the Gotify Server package itself.');
 		o.rmempty = false;
 		o.default = '0';
+
+		var sEnv = m.section(form.NamedSection, 'env', 'env', _('Configuration file'));
+		sEnv.description = _('/etc/gotify/server.env — edit directly; data paths remain forced by the init script.');
+
+		o = sEnv.option(form.TextValue, 'content', _('File contents'));
+		o.rows = 18;
+		o.monospace = true;
+		o.rmempty = true;
+
+		o = sEnv.option(form.Button, '_save_env', _('Save file'));
+		o.inputtitle = _('Save file');
+		o.inputstyle = 'apply';
+		o.onclick = L.bind(function (ev) {
+			ev.preventDefault();
+			return m.parse().then(function () {
+				var content = (formdata.env && formdata.env.content != null)
+					? String(formdata.env.content) : '';
+				return callSetEnv(content, 'true').then(function () {
+					ui.addNotification(null, E('p', _('Configuration file saved and service restarted.')), 'info');
+					location.reload();
+				});
+			});
+		}, this);
 
 		m.save = function () {
 			return m.parse().then(function () {

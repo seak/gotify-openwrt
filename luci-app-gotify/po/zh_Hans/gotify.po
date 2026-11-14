@@ -4,29 +4,17 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Language: zh_CN\n"
 
-msgid "Gotify"
-msgstr "Gotify"
+msgid "Gotify Server"
+msgstr "Gotify Server"
 
-msgid "Manage the Gotify push notification service. Apps, clients, and messages stay in the Gotify Web UI. Database and image paths are fixed by the package init script."
-msgstr "管理 Gotify 推送通知服务。应用、客户端与消息仍在 Gotify Web UI 中处理。数据库与图片路径由软件包 init 脚本固定。"
+msgid "Manage the Gotify Server push notification service. Apps, clients, and messages stay in the Gotify Server Web UI. Database and image paths are fixed by the package init script."
+msgstr "管理 Gotify Server 推送通知服务。应用、客户端与消息仍在 Gotify Server Web UI 中处理。数据库与图片路径由软件包 init 脚本固定。"
 
 msgid "Service"
 msgstr "服务"
 
-msgid "Running"
-msgstr "运行中"
-
-msgid "Start on boot"
-msgstr "开机启动"
-
-msgid "Yes"
-msgstr "是"
-
-msgid "No"
-msgstr "否"
-
-msgid "Gotify Web UI"
-msgstr "Gotify Web UI"
+msgid "Gotify Server Web UI"
+msgstr "Gotify Server Web UI"
 
 msgid "Start"
 msgstr "启动"
@@ -34,17 +22,17 @@ msgstr "启动"
 msgid "Stop"
 msgstr "停止"
 
-msgid "Enable on boot"
-msgstr "启用开机启动"
-
 msgid "Enable"
 msgstr "启用"
 
-msgid "Disable on boot"
-msgstr "禁用开机启动"
-
 msgid "Disable"
 msgstr "禁用"
+
+msgid "Service status Start/Stop (current status: %s)"
+msgstr "服务状态 启动/停止 （当前状态：%s）"
+
+msgid "Start on boot Enable/Disable (current status: %s)"
+msgstr "开机启动 启用/禁用 （当前状态：%s）"
 
 msgid "Port"
 msgstr "端口"
@@ -58,14 +46,32 @@ msgstr "留空 = 全部地址"
 msgid "Log level"
 msgstr "日志级别"
 
-msgid "Allow registration"
-msgstr "允许注册"
+msgid "info (default)"
+msgstr "info（默认）"
+
+msgid "Allow new user registration"
+msgstr "允许注册新用户"
 
 msgid "Allow WAN access (firewall)"
 msgstr "允许 WAN 访问（防火墙）"
 
-msgid "WAN TCP accept rule for the Gotify port. Off by default; does not change the Gotify package itself."
-msgstr "为 Gotify 端口创建 WAN TCP 放行规则。默认关闭；不修改 Gotify 主软件包本身。"
+msgid "WAN TCP accept rule for the Gotify Server port. Off by default; does not change the Gotify Server package itself."
+msgstr "为 Gotify Server 端口创建 WAN TCP 放行规则。默认关闭；不修改 Gotify Server 主软件包本身。"
 
 msgid "Configuration saved and service restarted."
 msgstr "配置已保存并已重启服务。"
+
+msgid "Configuration file"
+msgstr "配置文件"
+
+msgid "/etc/gotify/server.env — edit directly; data paths remain forced by the init script."
+msgstr "/etc/gotify/server.env — 可直接编辑；数据路径仍由 init 脚本强制。"
+
+msgid "File contents"
+msgstr "文件内容"
+
+msgid "Save file"
+msgstr "保存文件"
+
+msgid "Configuration file saved and service restarted."
+msgstr "配置文件已保存并已重启服务。"
