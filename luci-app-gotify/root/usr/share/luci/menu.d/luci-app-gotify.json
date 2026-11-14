@@ -1,6 +1,6 @@
 {
 	"admin/services/gotify": {
-		"title": "Gotify",
+		"title": "Gotify Server",
 		"order": 90,
 		"action": {
 			"type": "view",

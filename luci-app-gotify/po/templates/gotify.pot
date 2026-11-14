@@ -4,28 +4,16 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Language: \n"
 
-msgid "Gotify"
+msgid "Gotify Server"
 msgstr ""
 
-msgid "Manage the Gotify push notification service. Apps, clients, and messages stay in the Gotify Web UI. Database and image paths are fixed by the package init script."
+msgid "Manage the Gotify Server push notification service. Apps, clients, and messages stay in the Gotify Server Web UI. Database and image paths are fixed by the package init script."
 msgstr ""
 
 msgid "Service"
 msgstr ""
 
-msgid "Running"
-msgstr ""
-
-msgid "Start on boot"
-msgstr ""
-
-msgid "Yes"
-msgstr ""
-
-msgid "No"
-msgstr ""
-
-msgid "Gotify Web UI"
+msgid "Gotify Server Web UI"
 msgstr ""
 
 msgid "Start"
@@ -34,16 +22,16 @@ msgstr ""
 msgid "Stop"
 msgstr ""
 
-msgid "Enable on boot"
-msgstr ""
-
 msgid "Enable"
 msgstr ""
 
-msgid "Disable on boot"
+msgid "Disable"
 msgstr ""
 
-msgid "Disable"
+msgid "Service status Start/Stop (current status: %s)"
+msgstr ""
+
+msgid "Start on boot Enable/Disable (current status: %s)"
 msgstr ""
 
 msgid "Port"
@@ -58,14 +46,32 @@ msgstr ""
 msgid "Log level"
 msgstr ""
 
-msgid "Allow registration"
+msgid "info (default)"
+msgstr ""
+
+msgid "Allow new user registration"
 msgstr ""
 
 msgid "Allow WAN access (firewall)"
 msgstr ""
 
-msgid "WAN TCP accept rule for the Gotify port. Off by default; does not change the Gotify package itself."
+msgid "WAN TCP accept rule for the Gotify Server port. Off by default; does not change the Gotify Server package itself."
 msgstr ""
 
 msgid "Configuration saved and service restarted."
+msgstr ""
+
+msgid "Configuration file"
+msgstr ""
+
+msgid "/etc/gotify/server.env — edit directly; data paths remain forced by the init script."
+msgstr ""
+
+msgid "File contents"
+msgstr ""
+
+msgid "Save file"
+msgstr ""
+
+msgid "Configuration file saved and service restarted."
 msgstr ""

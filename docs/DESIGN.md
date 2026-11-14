@@ -29,7 +29,7 @@ Approach: **host Go 1.26 + musl cross-compile a static binary → pack a gzip Op
 ### Version
 
 - Only this repo’s `VERSION` file (optional env override); missing version fails the build—no `0.0.0-unknown`
-- Package name: `gotify_${VERSION}-${PKG_RELEASE}_${PKG_ARCH}.ipk` or `gotify-zh_…` (currently `PKG_RELEASE=1`)
+- Package name: `gotify_${VERSION}-${PKG_RELEASE}_${PKG_ARCH}.ipk` or `gotify-zh_…` (currently `PKG_RELEASE=2`)
 - Injected: `main.Version` / `Commit` / `BuildDate` / `Mode=prod`
 - Verify with `gotify version` on native builds, or embedded strings on cross builds (do not rely on Go 1.26 `go version -m` listing `-X`)
 

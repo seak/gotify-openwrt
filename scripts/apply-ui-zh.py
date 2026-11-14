@@ -17,6 +17,11 @@ SPECIALS: list[tuple[str, str]] = [
         "通过 {appName} 发送推送消息。标题留空则使用应用名称。",
     ),
     (
+        "A client manages messages, clients, applications and users (with admin\n"
+        "                    permissions).",
+        "客户端用于管理消息、客户端、应用和用户（管理员权限）。",
+    ),
+    (
         "'Regenerate token for ' +\n"
         "                        toRegenerateTokenApp.name +\n"
         "                        '? The current token will be invalidated.'",
@@ -106,7 +111,13 @@ def apply_jsx_text(text: str, en: str, zh: str) -> str:
         r">(\s*)" + re.escape(en) + r"(\s*)<",
         re.MULTILINE,
     )
-    return pattern.sub(lambda m: f">{m.group(1)}{zh}{m.group(2)}<", text)
+    text = pattern.sub(lambda m: f">{m.group(1)}{zh}{m.group(2)}<", text)
+    # Multiline JSX text: "foo bar" also matches "foo\n    bar"
+    if " " in en:
+        flex = r"\s+".join(re.escape(part) for part in en.split())
+        flex_pat = re.compile(r">(\s*)" + flex + r"(\s*)<", re.MULTILINE)
+        text = flex_pat.sub(lambda m: f">{m.group(1)}{zh}{m.group(2)}<", text)
+    return text
 
 
 def transform(text: str, pairs: list[tuple[str, str]]) -> str:

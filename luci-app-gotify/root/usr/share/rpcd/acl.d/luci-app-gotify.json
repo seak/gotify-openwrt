@@ -1,15 +1,21 @@
 {
 	"luci-app-gotify": {
-		"description": "Grant access to Gotify env config, service control, and WAN firewall rule",
+		"description": "Grant access to Gotify Server env config, service control, and WAN firewall rule",
 		"read": {
 			"ubus": {
 				"luci.gotify": [ "get_config" ]
+			},
+			"file": {
+				"/etc/gotify/server.env": [ "read" ]
 			},
 			"uci": [ "firewall" ]
 		},
 		"write": {
 			"ubus": {
-				"luci.gotify": [ "set_config", "service" ]
+				"luci.gotify": [ "set_config", "set_env", "service" ]
+			},
+			"file": {
+				"/etc/gotify/server.env": [ "write" ]
 			},
 			"uci": [ "firewall" ]
 		}
