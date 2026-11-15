@@ -1,12 +1,15 @@
-# One image builds both OpenWrt 24.10 packages:
+# One image builds OpenWrt 24.10 (.ipk) and 25.12 (.apk) packages:
 #   x86_64 and aarch64_cortex-a53 (Raspberry Pi 3 / bcm2710)
 # Go is pinned to 1.26.0, matching gotify-server v3.1.1's toolchain line.
 # musl-tools provides musl-gcc; musl.cc provides the x86_64 and aarch64 cross compilers.
+# Host apk-tools (with mkpkg) packs OpenWrt 25.12 ADB .apk packages.
 FROM debian:bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
     GO_VERSION=1.26.0 \
     NODE_VERSION=24.22.3 \
+    APK_TOOLS_VERSION=3.0.2 \
+    APK_TOOLS_COMMIT=d093f7c198a64bff0cd58afeaf638909fda24ca8 \
     PATH=/usr/local/go/bin:/opt/x86_64-linux-musl-cross/bin:/opt/aarch64-linux-musl-cross/bin:/usr/local/bin:${PATH} \
     GOPROXY=https://goproxy.cn,https://proxy.golang.org,direct \
     GOSUMDB=sum.golang.org \
@@ -17,14 +20,42 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         binutils \
         ca-certificates \
         curl \
+        fakeroot \
         file \
         gcc \
         git \
+        libssl-dev \
+        meson \
         musl-tools \
+        ninja-build \
+        pkg-config \
         python3 \
         tar \
         xz-utils \
+        zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# OpenWrt 25.12 pins apk-tools 3.0.2; host build keeps mkpkg (not -Dminimal=true).
+RUN set -eux; \
+    git clone --filter=blob:none https://gitlab.alpinelinux.org/alpine/apk-tools.git /tmp/apk-tools \
+    && git -C /tmp/apk-tools checkout "${APK_TOOLS_COMMIT}" \
+    && meson setup /tmp/apk-tools/build /tmp/apk-tools \
+        --prefix=/usr/local \
+        -Dminimal=false \
+        -Dcrypto_backend=openssl \
+        -Ddocs=disabled \
+        -Dhelp=disabled \
+        -Dlua=disabled \
+        -Dpython=disabled \
+        -Dtests=disabled \
+        -Dzstd=disabled \
+        -Durl_backend=wget \
+        -Ddefault_library=static \
+    && meson compile -C /tmp/apk-tools/build \
+    && meson install -C /tmp/apk-tools/build \
+    && rm -rf /tmp/apk-tools \
+    && apk --version \
+    && apk mkpkg 2>&1 | grep -q "required info field"
 
 RUN curl -fL --retry 5 --retry-delay 2 -o /tmp/go.tgz "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
         || curl -fL --retry 5 --retry-delay 2 -o /tmp/go.tgz "https://mirrors.aliyun.com/golang/go${GO_VERSION}.linux-amd64.tar.gz" \
@@ -68,10 +99,10 @@ RUN set -eux; \
 RUN printf '%s\n' \
     '#!/bin/bash' \
     'set -euo pipefail' \
-    'tr -d "\r" < /src/scripts/build-ipk.sh > /tmp/build-ipk.sh' \
-    'chmod 0755 /tmp/build-ipk.sh' \
+    'tr -d "\r" < /src/scripts/build-packages.sh > /tmp/build-packages.sh' \
+    'chmod 0755 /tmp/build-packages.sh' \
     'export GOTIFY_OPENWRT_ROOT=/src' \
-    'exec /bin/bash /tmp/build-ipk.sh "$@"' \
+    'exec /bin/bash /tmp/build-packages.sh "$@"' \
     > /usr/local/bin/gotify-openwrt-entrypoint.sh \
     && chmod 0755 /usr/local/bin/gotify-openwrt-entrypoint.sh
 

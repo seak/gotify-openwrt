@@ -3,9 +3,10 @@ include $(TOPDIR)/rules.mk
 # Chinese Web UI variant of net/gotify.
 # Shares procd files with ../gotify/files. Build with:
 #
-#   LOCALE=zh scripts/build-ipk.sh
+#   LOCALE=zh PKG_FORMAT=all scripts/build-packages.sh
 #
 # Conflicts with Package/gotify (same /usr/bin/gotify paths).
+# PKG_FORMAT selects 24.10 .ipk and/or 25.12 .apk.
 
 PKG_NAME:=gotify-zh
 PKG_VERSION:=$(shell tr -d ' \t\r\n' < $(CURDIR)/../../VERSION 2>/dev/null || echo 3.1.1)
@@ -51,7 +52,7 @@ endef
 
 define Package/gotify-zh/description
   Gotify with a Chinese Web UI (build-time string replacements).
-  On OpenWrt 24.10 build with LOCALE=zh scripts/build-ipk.sh.
+  Build with LOCALE=zh scripts/build-packages.sh (PKG_FORMAT=all|ipk|apk).
 endef
 
 define Package/gotify-zh/conffiles
@@ -61,7 +62,7 @@ endef
 define Build/Prepare
 	$(Build/Prepare/Default)
 	if [ ! -f "$(PKG_BUILD_DIR)/ui/build/index.html" ]; then \
-		echo "ERROR: ui/build is missing. Use LOCALE=zh scripts/build-ipk.sh." >&2; \
+		echo "ERROR: ui/build is missing. Use LOCALE=zh scripts/build-packages.sh." >&2; \
 		exit 1; \
 	fi
 endef

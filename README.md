@@ -2,7 +2,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Standalone packaging for [Gotify](https://gotify.net/) on OpenWrt. Builds a **musl-static** binary from official [gotify/server](https://github.com/gotify/server) and packs `.ipk` files. Upstream application code is not modified.
+Standalone packaging for [Gotify](https://gotify.net/) on OpenWrt. Builds a **musl-static** binary from official [gotify/server](https://github.com/gotify/server) and packs **OpenWrt 24.10 `.ipk`** (opkg) and **OpenWrt 25.12 `.apk`** (apk). Upstream application code is not modified.
 
 OpenWrt pitfalls and maintainer gotchas: [docs/PITFALLS.md](docs/PITFALLS.md).
 
@@ -20,17 +20,19 @@ Package version is pinned in [`VERSION`](VERSION); see [CHANGELOG](CHANGELOG.md)
 
 ### Supported targets
 
-| Dimension | Current |
-|-----------|---------|
-| OpenWrt | **24.10** (verified; other releases not guaranteed) |
-| Arch | see table below |
+| OpenWrt | Package manager | Artifact | Output dir |
+|---------|-----------------|----------|------------|
+| **24.10** | opkg | `.ipk` | `bin/packages/24.10/` |
+| **25.12** | apk | `.apk` | `bin/packages/25.12/` |
+
+Pick by **your OpenWrt release**: use `.ipk` on 24.10 and `.apk` on 25.12. Do not rename formats. Filenames do **not** embed `24.10`/`25.12` (extension + directory are enough); official feed-style per-release filenames are unnecessary for this out-of-tree musl package.
 
 | `TARGET` | OpenWrt arch | Typical boards |
 |----------|--------------|----------------|
 | `x86_64` | `x86_64` | x86/64 appliances, VMs |
 | `bcm2710` | `aarch64_cortex-a53` | Raspberry Pi 3 (64-bit) |
 
-More OpenWrt releases / arches may be added later.
+LuCI: `Architecture: all` under `24.10/all/`; `arch: noarch` under `25.12/noarch/`.
 
 ### UI languages
 
@@ -53,9 +55,10 @@ Prerequisite: sibling checkout `../gotify-server` at tag `v$(cat VERSION)` (HEAD
 |-----|---------|
 | `TARGET` | `x86_64`, `bcm2710`, or `all` |
 | `LOCALE` | `en` (default → package `gotify`) or `zh` (→ `gotify-zh`) |
+| `PKG_FORMAT` | `all` (default → 24.10 `.ipk` + 25.12 `.apk`), `ipk`, or `apk` |
 | `GOTIFY_SRC` | Source path (Docker default `/gotify-server`; native default `../gotify-server`) |
 
-Artifacts: `build/` (binaries) and `bin/packages/<arch>/<pkg>/` (`.ipk`). `GOPROXY` prefers `goproxy.cn` by default. [`scripts/verify-ipk.py`](scripts/verify-ipk.py) checks package layout, LF, modes, and version. Each run also packs `luci-app-gotify` (`Architecture: all`).
+Artifacts: `build/` (binaries) and `bin/packages/<openwrt>/<arch>/<pkg>/`. `GOPROXY` prefers `goproxy.cn` by default. [`scripts/verify-ipk.py`](scripts/verify-ipk.py) / [`scripts/verify-apk.py`](scripts/verify-apk.py) check layout, LF, modes, and version. Each run also packs `luci-app-gotify`. Host **apk-tools with `mkpkg`** is required when `PKG_FORMAT` includes `apk`.
 
 ### Docker (reproducible)
 
@@ -73,29 +76,43 @@ docker run --rm `
 
 ### WSL / native (no Docker)
 
-Toolchain must match [`scripts/Dockerfile`](scripts/Dockerfile): Go **1.26**, Node + Yarn **1.x**, `x86_64-linux-musl-gcc` (and `aarch64-linux-musl-gcc` for `bcm2710` / `all`). One-shot installer (user prefix `~/.local`, no sudo for Go/Node/musl cross):
+Toolchain must match [`scripts/Dockerfile`](scripts/Dockerfile): Go **1.26**, Node + Yarn **1.x**, `x86_64-linux-musl-gcc` (and `aarch64-linux-musl-gcc` for `bcm2710` / `all`), plus host **apk-tools** with `mkpkg` for `.apk`. One-shot installer (user prefix `~/.local`, no sudo for Go/Node/musl cross). For apk-tools build deps: `sudo apt install meson ninja-build pkg-config libssl-dev zlib1g-dev`.
 
 ```bash
 ./scripts/setup-wsl-toolchain.sh
 # then in a new shell, or: . ~/.local/gotify-openwrt-env.sh
-TARGET=x86_64 LOCALE=en ./scripts/build-ipk.sh
+TARGET=x86_64 LOCALE=en ./scripts/build-packages.sh
 ```
 
 If downloads stall, extract the same archives as in the Dockerfile into `~/.local/opt/` (Go/Node tarball layout) and musl `*-linux-musl-cross/` trees, then re-run the script (it skips components that are already present).
 
 ## Install
 
-Pick the `.ipk` for your arch from a [release](https://github.com/seak/gotify-openwrt/releases) or local `bin/packages/` (filename uses `<ver>` from [`VERSION`](VERSION) + `PKG_RELEASE`), then:
+From a [release](https://github.com/seak/gotify-openwrt/releases) or local `bin/packages/<openwrt>/`, pick the artifact for **your OpenWrt version and arch** (`<ver>` from [`VERSION`](VERSION) + `PKG_RELEASE`).
+
+### OpenWrt 24.10 (opkg / `.ipk`)
 
 ```sh
 scp gotify_<ver>_x86_64.ipk root@router:/tmp/
 opkg update
 opkg install /tmp/gotify_<ver>_x86_64.ipk
 
-# Optional LuCI management (Architecture: all; Depends: gotify — also satisfied by gotify-zh).
-# Same ipk includes Chinese LuCI strings (gotify.zh-cn.lmo); set LuCI language to 简体中文.
+# Optional LuCI (Architecture: all; Depends: gotify — also satisfied by gotify-zh).
 scp luci-app-gotify_<ver>_all.ipk root@router:/tmp/
 opkg install /tmp/luci-app-gotify_<ver>_all.ipk
+```
+
+### OpenWrt 25.12 (apk / `.apk`)
+
+Packages are unsigned; use `--allow-untrusted`. Do not rename a `.ipk` to `.apk`.
+
+```sh
+scp gotify_<ver>-rN_x86_64.apk root@router:/tmp/
+apk update
+apk add --allow-untrusted /tmp/gotify_<ver>-rN_x86_64.apk
+
+scp luci-app-gotify_<ver>-rN_noarch.apk root@router:/tmp/
+apk add --allow-untrusted /tmp/luci-app-gotify_<ver>-rN_noarch.apk
 ```
 
 | Path | Role |
@@ -124,10 +141,10 @@ net/gotify/             # package feed + procd files
 net/gotify-zh/          # Chinese UI variant (shares files/)
 luci-app-gotify/        # optional LuCI app (server.env editor, no Gotify UCI)
 patches/ui-zh/          # UI string replacements (build copy only)
-scripts/                # Dockerfile, WSL setup, build, pack, verify, branding
+scripts/                # Dockerfile, WSL setup, build, pack ipk/apk, verify, branding
 ```
 
-`bin/`, `build/`, and `graphify-out/` are not committed. Scripts, `net/gotify/files`, and `luci-app-gotify` are forced to LF.
+`bin/` (including `bin/packages/24.10/` and `25.12/`), `build/`, and `graphify-out/` are not committed. Scripts, `net/gotify/files`, and `luci-app-gotify` are forced to LF.
 
 ## Out of scope
 

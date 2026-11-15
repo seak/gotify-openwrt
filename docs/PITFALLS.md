@@ -12,8 +12,10 @@ OpenWrt-specific traps and maintainer gotchas that are easy to miss. Build/insta
 | `/etc/init.d/gotify` misbehaves | CRLF | LF + strip `\r` when packing |
 | Data under `/tmp/lib/gotify` | `/var`→`/tmp` + old config | `/etc/gotify/data` + forced env + postinst |
 | Package name / `gotify version` is unknown | no VERSION or `-X` missing | require `VERSION` + build self-check |
-| SDK golang build fails | feed Go too old | build binary with external Go; only pack the ipk |
+| SDK golang build fails | feed Go too old | build binary with external Go; only pack the package |
 | `Malformed package file` on `opkg install` | classic `ar` `.ipk` | OpenWrt 24.x needs gzip tar (`debian-binary` + `control.tar.gz` + `data.tar.gz`) |
+| `apk add` rejects package / “invalid format” | `.ipk` renamed or hand-rolled APKv2 | use `apk mkpkg` ADB `.apk` from this repo; never rename `.ipk`→`.apk` |
+| `apk: mkpkg` missing on build host | device/minimal apk-tools | install host apk-tools with `-Dminimal=false` (Docker / `setup-wsl-toolchain.sh`) |
 | Official plugin `.so` will not load | ABI / musl mismatch | out of scope for this package |
 
 ## Data directory (`/var` is not persistent)
@@ -28,10 +30,20 @@ On OpenWrt, **`/var` → `/tmp` (tmpfs)**. Paths under `/var/lib/gotify` land in
 
 `postinst` rewrites `/var/lib/gotify` and `/tmp/lib/gotify` in `server.env` to `/etc/gotify/data`, migrates existing DB files when possible, then enable/start.
 
-## Line endings and `.ipk` format
+## Line endings and package formats
 
 - Windows checkouts can make init CRLF and break ash/procd → `.gitattributes` forces LF; strip `\r` before packing; init/postinst mode 0755
-- OpenWrt 24.x rejects classic `ar` packages as *Malformed package file*; packing must emit a **gzip tar** layout
+- OpenWrt **24.10** (opkg): rejects classic `ar` packages as *Malformed package file*; packing must emit a **gzip tar** `.ipk`
+- OpenWrt **25.12** (apk): needs ADB `.apk` from host `apk mkpkg`; `.ipk` and `.apk` are not interchangeable
+- Artifacts live under `bin/packages/24.10/` and `bin/packages/25.12/`; filenames do not embed the OpenWrt series (extension + directory are enough for this out-of-tree package)
+
+## Claiming support for a newer OpenWrt release
+
+There is no automatic cross-release guarantee. Before documenting a new OpenWrt series:
+
+1. Check package manager/format, arch strings, dependency names, procd/LuCI paths, and release notes.
+2. Smoke-test on that release: install, start, Web UI, data persistence, LuCI, `gotify`↔`gotify-zh` exclusion, remove/reinstall.
+3. If the existing `.apk` (or `.ipk`) recipe works, publish under that series’ output dir (or extend the docs matrix). If it fails, fix the recipe and keep older dirs for users who did not upgrade.
 
 ## Version injection checks
 
