@@ -4,10 +4,12 @@ include $(TOPDIR)/rules.mk
 #
 # OpenWrt 24.10's packages feed ships Go 1.23. Gotify v3.1.1 requires
 # Go >= 1.25 (toolchain go1.26.0) and CGO for mattn/go-sqlite3, so this
-# Makefile cannot build the package on 24.10. Produce the .ipk with the
-# Docker image in scripts/ (Go 1.26, musl static):
+# Makefile cannot build the package in-tree. Produce packages with
+# scripts/build-packages.sh (Go 1.26, musl static):
 #
-#   scripts/build-ipk.sh
+#   PKG_FORMAT=all   # default: 24.10 .ipk + 25.12 .apk
+#   PKG_FORMAT=ipk   # OpenWrt 24.10 opkg only
+#   PKG_FORMAT=apk   # OpenWrt 25.12 apk only
 #
 # github.com/gotify/server/v3's main package installs a binary named "v3".
 # Install that file as /usr/bin/gotify. Do not ship a v2 binary.
@@ -53,7 +55,8 @@ endef
 
 define Package/gotify/description
   Gotify is a self-hosted push notification server (English Web UI).
-  Chinese UI package is gotify-zh. On OpenWrt 24.10 use scripts/build-ipk.sh.
+  Chinese UI package is gotify-zh. Build with scripts/build-packages.sh
+  (PKG_FORMAT=all|ipk|apk for OpenWrt 24.10 .ipk and/or 25.12 .apk).
 endef
 
 define Package/gotify/conffiles
@@ -63,7 +66,7 @@ endef
 define Build/Prepare
 	$(Build/Prepare/Default)
 	if [ ! -f "$(PKG_BUILD_DIR)/ui/build/index.html" ]; then \
-		echo "ERROR: ui/build is missing. Use scripts/build-ipk.sh (Go 1.26 + musl)." >&2; \
+		echo "ERROR: ui/build is missing. Use scripts/build-packages.sh (Go 1.26 + musl)." >&2; \
 		exit 1; \
 	fi
 endef

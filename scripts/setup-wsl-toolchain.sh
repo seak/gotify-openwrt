@@ -3,6 +3,9 @@
 # Tools go under $HOME/.local (no sudo required for Go/Node/musl cross).
 # Optional: sudo apt install musl-tools (provides musl-gcc); not required if
 # x86_64-linux-musl-gcc is on PATH.
+# For OpenWrt 25.12 .apk packing (INSTALL_APK_TOOLS=1, default), host needs:
+#   sudo apt install meson ninja-build pkg-config libssl-dev zlib1g-dev
+# (builds apk-tools with mkpkg into ~/.local).
 set -euo pipefail
 
 export LC_ALL=C
@@ -10,9 +13,13 @@ export LC_ALL=C
 GO_VERSION="${GO_VERSION:-1.26.0}"
 NODE_VERSION="${NODE_VERSION:-24.22.3}"
 YARN_VERSION="${YARN_VERSION:-1.22.22}"
+# OpenWrt 25.12 host apk-tools (mkpkg); same commit as scripts/Dockerfile.
+APK_TOOLS_VERSION="${APK_TOOLS_VERSION:-3.0.2}"
+APK_TOOLS_COMMIT="${APK_TOOLS_COMMIT:-d093f7c198a64bff0cd58afeaf638909fda24ca8}"
 PREFIX="${PREFIX:-${HOME}/.local}"
 OPT_ROOT="${OPT_ROOT:-${HOME}/.local/opt}"
 INSTALL_AARCH64="${INSTALL_AARCH64:-1}"
+INSTALL_APK_TOOLS="${INSTALL_APK_TOOLS:-1}"
 
 log() { printf '+ %s\n' "$*"; }
 die() { echo "ERROR: $*" >&2; exit 1; }
@@ -28,7 +35,7 @@ need_host_cmd git
 need_host_cmd python3
 need_host_cmd file
 need_host_cmd gcc
-# build-ipk.sh uses `strings` when cross-checking embedded Version/Commit.
+# build-packages.sh uses `strings` when cross-checking embedded Version/Commit.
 need_host_cmd strings
 
 mkdir -p "${PREFIX}/bin" "${OPT_ROOT}"
@@ -114,6 +121,51 @@ install_musl_cross() {
 	log "Installed ${name}"
 }
 
+install_apk_tools() {
+	local dest="${OPT_ROOT}/apk-tools-${APK_TOOLS_VERSION}"
+	local src="/tmp/apk-tools-${APK_TOOLS_COMMIT}"
+	local apk_bin="${dest}/bin/apk"
+
+	apk_has_mkpkg() {
+		local bin="$1" out
+		out="$("${bin}" mkpkg 2>&1 || true)"
+		printf '%s' "${out}" | grep -q "required info field"
+	}
+
+	if [ -x "${apk_bin}" ] && apk_has_mkpkg "${apk_bin}"; then
+		log "apk-tools ${APK_TOOLS_VERSION} already installed at ${dest}"
+	else
+		need_host_cmd meson
+		need_host_cmd ninja
+		need_host_cmd pkg-config
+		pkg-config --exists openssl || die "need libssl-dev (pkg-config openssl)"
+		pkg-config --exists zlib || die "need zlib1g-dev (pkg-config zlib)"
+		rm -rf "${src}" "${dest}"
+		log "Cloning apk-tools ${APK_TOOLS_VERSION} (${APK_TOOLS_COMMIT})"
+		git clone --filter=blob:none https://gitlab.alpinelinux.org/alpine/apk-tools.git "${src}"
+		git -C "${src}" checkout "${APK_TOOLS_COMMIT}"
+		meson setup "${src}/build" "${src}" \
+			--prefix="${dest}" \
+			-Dminimal=false \
+			-Dcrypto_backend=openssl \
+			-Ddocs=disabled \
+			-Dhelp=disabled \
+			-Dlua=disabled \
+			-Dpython=disabled \
+			-Dtests=disabled \
+			-Dzstd=disabled \
+			-Durl_backend=wget \
+			-Ddefault_library=static
+		meson compile -C "${src}/build"
+		meson install -C "${src}/build"
+		rm -rf "${src}"
+		[ -x "${apk_bin}" ] || die "apk missing after install"
+		apk_has_mkpkg "${apk_bin}" || die "apk mkpkg missing (unexpected minimal build)"
+		log "Installed apk-tools ${APK_TOOLS_VERSION}"
+	fi
+	ln -sfn "${apk_bin}" "${PREFIX}/bin/apk"
+}
+
 write_env_snippet() {
 	local snippet="${PREFIX}/gotify-openwrt-env.sh"
 	cat >"${snippet}" <<EOF
@@ -155,6 +207,13 @@ verify() {
 	command -v python3
 	command -v file
 	command -v git
+	if [ "${INSTALL_APK_TOOLS}" = "1" ]; then
+		command -v apk
+		apk --version
+		_out="$(apk mkpkg 2>&1 || true)"
+		printf '%s' "${_out}" | grep -q "required info field" || die "apk mkpkg missing"
+		unset _out
+	fi
 	if command -v musl-gcc >/dev/null 2>&1; then
 		musl-gcc --version | head -1
 	else
@@ -171,6 +230,9 @@ install_node_yarn
 install_musl_cross x86_64-linux-musl-cross
 if [ "${INSTALL_AARCH64}" = "1" ]; then
 	install_musl_cross aarch64-linux-musl-cross
+fi
+if [ "${INSTALL_APK_TOOLS}" = "1" ]; then
+	install_apk_tools
 fi
 write_env_snippet
 # ensure current shell PATH for verify
