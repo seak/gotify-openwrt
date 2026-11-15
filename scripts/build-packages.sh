@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build musl-static Gotify binaries from a gotify-server checkout and pack OpenWrt .ipk files.
+# Build musl-static Gotify binaries from a gotify-server checkout and pack OpenWrt packages.
 #
 # TARGET=x86_64    OpenWrt x86/64                 PKG_ARCH=x86_64
 # TARGET=bcm2710   Raspberry Pi 3 bcm27xx/bcm2710 PKG_ARCH=aarch64_cortex-a53
@@ -7,6 +7,14 @@
 #
 # LOCALE=en        English Web UI → package gotify (default)
 # LOCALE=zh        Chinese Web UI → package gotify-zh (Conflicts with gotify)
+#
+# PKG_FORMAT=all   pack OpenWrt 24.10 .ipk and 25.12 .apk (default)
+# PKG_FORMAT=ipk   only 24.10 .ipk (opkg)
+# PKG_FORMAT=apk   only 25.12 .apk (apk mkpkg)
+#
+# Outputs:
+#   bin/packages/24.10/<arch|all>/<pkg>/*.ipk
+#   bin/packages/25.12/<arch|noarch>/<pkg>/*.apk
 #
 # The packaging repo is this tree. Source defaults to ../gotify-server and must be tag v${VERSION}.
 # Inside the Docker image the repo is mounted at /src and the source at /gotify-server.
@@ -49,6 +57,24 @@ case "${LOCALE}" in
 		echo "ERROR: LOCALE must be en or zh, got ${LOCALE}" >&2
 		exit 1
 		;;
+esac
+PKG_FORMAT="${PKG_FORMAT:-all}"
+case "${PKG_FORMAT}" in
+	all|ipk|apk) ;;
+	*)
+		echo "ERROR: PKG_FORMAT must be all, ipk, or apk, got ${PKG_FORMAT}" >&2
+		exit 1
+		;;
+esac
+want_ipk=0
+want_apk=0
+case "${PKG_FORMAT}" in
+	all)
+		want_ipk=1
+		want_apk=1
+		;;
+	ipk) want_ipk=1 ;;
+	apk) want_apk=1 ;;
 esac
 PKG_RELEASE="${PKG_RELEASE:-1}"
 case "${PKG_RELEASE}" in
@@ -95,8 +121,24 @@ if [ "${HEAD_COMMIT}" != "${COMMIT}" ]; then
 	exit 1
 fi
 
-log "version=${VERSION} release=${PKG_RELEASE} commit=${COMMIT} locale=${LOCALE} package=${PKG_NAME}"
+log "version=${VERSION} release=${PKG_RELEASE} commit=${COMMIT} locale=${LOCALE} package=${PKG_NAME} format=${PKG_FORMAT}"
 log "source=${GOTIFY_SRC}"
+
+if [ "${want_apk}" = "1" ]; then
+	APK_BIN="${APK_BIN:-apk}"
+	if ! command -v "${APK_BIN}" >/dev/null 2>&1; then
+		echo "ERROR: apk-tools not found (set APK_BIN or install host apk with mkpkg)" >&2
+		exit 1
+	fi
+	export APK_BIN
+	# -Dhelp=disabled builds reject --help; probe mkpkg by invoking it bare.
+	_apk_mkpkg_out="$("${APK_BIN}" mkpkg 2>&1 || true)"
+	if ! printf '%s' "${_apk_mkpkg_out}" | grep -q "required info field"; then
+		echo "ERROR: ${APK_BIN} has no mkpkg applet (need host apk-tools with -Dminimal=false)" >&2
+		exit 1
+	fi
+	unset _apk_mkpkg_out
+fi
 
 go_ver="$(go env GOVERSION 2>/dev/null || go version)"
 case "${go_ver}" in
@@ -287,44 +329,84 @@ build_arch() {
 		fi
 	fi
 
-	ipk_dir="${REPO_ROOT}/bin/packages/${pkg_arch}/${PKG_NAME}"
-	ipk_path="${ipk_dir}/${PKG_NAME}_${VERSION}-${PKG_RELEASE}_${pkg_arch}.ipk"
 	if [ ! -f "${WORK_SRC}/LICENSE" ]; then
 		echo "ERROR: missing upstream LICENSE at ${WORK_SRC}/LICENSE" >&2
 		exit 1
 	fi
-	python3 "${SCRIPT_DIR}/pack-ipk.py" \
-		--files "${REPO_ROOT}/net/gotify/files" \
-		--bin "${bin_out}" \
-		--arch "${pkg_arch}" \
-		--version "${VERSION}" \
-		--release "${PKG_RELEASE}" \
-		--package "${PKG_NAME}" \
-		--license "${WORK_SRC}/LICENSE" \
-		--out "${ipk_path}"
-	python3 "${SCRIPT_DIR}/verify-ipk.py" \
-		--package "${PKG_NAME}" \
-		--version "${VERSION}-${PKG_RELEASE}" \
-		"${ipk_path}"
-	log "Done ${ipk_path}"
+
+	if [ "${want_ipk}" = "1" ]; then
+		ipk_dir="${REPO_ROOT}/bin/packages/24.10/${pkg_arch}/${PKG_NAME}"
+		ipk_path="${ipk_dir}/${PKG_NAME}_${VERSION}-${PKG_RELEASE}_${pkg_arch}.ipk"
+		python3 "${SCRIPT_DIR}/pack-ipk.py" \
+			--files "${REPO_ROOT}/net/gotify/files" \
+			--bin "${bin_out}" \
+			--arch "${pkg_arch}" \
+			--version "${VERSION}" \
+			--release "${PKG_RELEASE}" \
+			--package "${PKG_NAME}" \
+			--license "${WORK_SRC}/LICENSE" \
+			--out "${ipk_path}"
+		python3 "${SCRIPT_DIR}/verify-ipk.py" \
+			--package "${PKG_NAME}" \
+			--version "${VERSION}-${PKG_RELEASE}" \
+			"${ipk_path}"
+		log "Done ${ipk_path}"
+	fi
+
+	if [ "${want_apk}" = "1" ]; then
+		apk_dir="${REPO_ROOT}/bin/packages/25.12/${pkg_arch}/${PKG_NAME}"
+		apk_path="${apk_dir}/${PKG_NAME}_${VERSION}-r${PKG_RELEASE}_${pkg_arch}.apk"
+		bash "${SCRIPT_DIR}/pack-apk.sh" "${PKG_NAME}" \
+			--arch "${pkg_arch}" \
+			--version "${VERSION}" \
+			--release "${PKG_RELEASE}" \
+			--bin "${bin_out}" \
+			--license "${WORK_SRC}/LICENSE" \
+			--out "${apk_path}"
+		python3 "${SCRIPT_DIR}/verify-apk.py" \
+			--package "${PKG_NAME}" \
+			--version "${VERSION}-r${PKG_RELEASE}" \
+			--arch "${pkg_arch}" \
+			"${apk_path}"
+		log "Done ${apk_path}"
+	fi
 }
 
 pack_luci_app() {
-	local ipk_dir ipk_path
-	ipk_dir="${REPO_ROOT}/bin/packages/all/luci-app-gotify"
-	ipk_path="${ipk_dir}/luci-app-gotify_${VERSION}-${PKG_RELEASE}_all.ipk"
-	log "Packing luci-app-gotify (Architecture: all)"
-	python3 "${SCRIPT_DIR}/pack-luci-ipk.py" \
-		--app "${REPO_ROOT}/luci-app-gotify" \
-		--version "${VERSION}" \
-		--release "${PKG_RELEASE}" \
-		--license "${REPO_ROOT}/LICENSE" \
-		--out "${ipk_path}"
-	python3 "${SCRIPT_DIR}/verify-ipk.py" \
-		--package luci-app-gotify \
-		--version "${VERSION}-${PKG_RELEASE}" \
-		"${ipk_path}"
-	log "Done ${ipk_path}"
+	local ipk_dir ipk_path apk_dir apk_path
+
+	if [ "${want_ipk}" = "1" ]; then
+		ipk_dir="${REPO_ROOT}/bin/packages/24.10/all/luci-app-gotify"
+		ipk_path="${ipk_dir}/luci-app-gotify_${VERSION}-${PKG_RELEASE}_all.ipk"
+		log "Packing luci-app-gotify .ipk (Architecture: all, OpenWrt 24.10)"
+		python3 "${SCRIPT_DIR}/pack-luci-ipk.py" \
+			--app "${REPO_ROOT}/luci-app-gotify" \
+			--version "${VERSION}" \
+			--release "${PKG_RELEASE}" \
+			--license "${REPO_ROOT}/LICENSE" \
+			--out "${ipk_path}"
+		python3 "${SCRIPT_DIR}/verify-ipk.py" \
+			--package luci-app-gotify \
+			--version "${VERSION}-${PKG_RELEASE}" \
+			"${ipk_path}"
+		log "Done ${ipk_path}"
+	fi
+
+	if [ "${want_apk}" = "1" ]; then
+		apk_dir="${REPO_ROOT}/bin/packages/25.12/noarch/luci-app-gotify"
+		apk_path="${apk_dir}/luci-app-gotify_${VERSION}-r${PKG_RELEASE}_noarch.apk"
+		log "Packing luci-app-gotify .apk (arch: noarch, OpenWrt 25.12)"
+		bash "${SCRIPT_DIR}/pack-apk.sh" luci-app-gotify \
+			--version "${VERSION}" \
+			--release "${PKG_RELEASE}" \
+			--out "${apk_path}"
+		python3 "${SCRIPT_DIR}/verify-apk.py" \
+			--package luci-app-gotify \
+			--version "${VERSION}-r${PKG_RELEASE}" \
+			--arch noarch \
+			"${apk_path}"
+		log "Done ${apk_path}"
+	fi
 }
 
 case "${TARGET}" in

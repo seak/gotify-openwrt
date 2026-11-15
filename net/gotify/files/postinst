@@ -10,7 +10,9 @@ mkdir -p "$DATADIR/images" "$DATADIR/plugins"
 
 # Ensure scripts are executable (defensive; packaging should already set 0755).
 [ -f "$INIT" ] && chmod 0755 "$INIT"
+# Best-effort: opkg stores scripts under /usr/lib/opkg; apk does not.
 [ -f /usr/lib/opkg/info/gotify.postinst ] && chmod 0755 /usr/lib/opkg/info/gotify.postinst 2>/dev/null || true
+[ -f /usr/lib/opkg/info/gotify-zh.postinst ] && chmod 0755 /usr/lib/opkg/info/gotify-zh.postinst 2>/dev/null || true
 
 # Migrate paths from older packages that used /var/lib/gotify (-> /tmp on OpenWrt).
 if [ -f "$CONF" ]; then
