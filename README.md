@@ -4,7 +4,7 @@
 
 Standalone packaging for [Gotify](https://gotify.net/) on OpenWrt. Builds a **musl-static** binary from official [gotify/server](https://github.com/gotify/server) and packs `.ipk` files. Upstream application code is not modified.
 
-Design / rationale and on-device pitfalls: [docs/DESIGN.md](docs/DESIGN.md).
+OpenWrt pitfalls and maintainer gotchas: [docs/PITFALLS.md](docs/PITFALLS.md).
 
 ## Why this repo
 
@@ -40,6 +40,8 @@ Upstream Gotify has no i18n; this repo ships separate packages (same paths, **Co
 |----------|---------|-----|
 | `en` (default) | `gotify` | English (upstream) |
 | `zh` | `gotify-zh` | Chinese ([`patches/ui-zh`](patches/ui-zh)) |
+
+Both packages add a muted `seak/gotify-openwrt` caption in the Web UI header (build-time branding; does not replace Gotify). `gotify-zh` mutually `Conflicts` with `gotify` and `Provides: gotify`. No runtime language switcher.
 
 Source defaults to sibling `../gotify-server` at the matching tag. Version comes only from [`VERSION`](VERSION) and is injected with `-X main.Version` (missing / `unknown` fails the build).
 
@@ -99,14 +101,16 @@ opkg install /tmp/luci-app-gotify_<ver>_all.ipk
 | Path | Role |
 |------|------|
 | `/usr/bin/gotify` | musl-static binary (embeds Web UI) |
-| `/etc/gotify/server.env` | config (conffile) |
+| `/etc/gotify/server.env` | config (conffile; env-based, not YAML `config.yml`) |
 | `/etc/gotify/data/` | DB, images, plugins (overlay; survives reboot) |
 | `/etc/init.d/gotify` | procd service |
 | LuCI → Services → Gotify | optional: edit `server.env`, service control, WAN firewall toggle |
 
-Web UI: `http://<router-ip>:8080`. Default `admin` / `admin`—change on first login. Depends only on `ca-bundle`.
+Web UI: `http://<router-ip>:8080` (port **8080** avoids LuCI/`uhttpd` on 80). Default `admin` / `admin`—change on first login. Depends only on `ca-bundle`.
 
-On OpenWrt, `/var` → `/tmp` (tmpfs), so data must not live under `/var`. This package forces `/etc/gotify/data` via procd env and migrates old `/var|/tmp` paths in `postinst`. The main package does not add firewall rules; `luci-app-gotify` can optionally enable a WAN rule. Official plugin `.so` files are ABI-incompatible with this build.
+On OpenWrt, `/var` → `/tmp` (tmpfs), so data must not live under `/var`. The init script forces `GOTIFY_DATABASE_CONNECTION`, `GOTIFY_UPLOADEDIMAGESDIR`, and `GOTIFY_PLUGINSDIR` under `/etc/gotify/data` (process env wins over `server.env`); `postinst` migrates old `/var|/tmp` paths. See [docs/PITFALLS.md](docs/PITFALLS.md) if data still lands under `/tmp`.
+
+`luci-app-gotify` does **not** introduce Gotify UCI (`/etc/config/gotify`); it reads/writes `server.env` via rpcd and optionally creates a firewall UCI rule named `gotify` for WAN access (off by default). No Gotify message/app/client management in LuCI—use the Web UI.
 
 ## Layout
 
@@ -114,8 +118,8 @@ On OpenWrt, `/var` → `/tmp` (tmpfs), so data must not live under `/var`. This 
 LICENSE                 # MIT for packaging in this repo
 VERSION                 # upstream version pin
 CHANGELOG.md            # package artifacts and packaging changes
-docs/DESIGN.md          # rationale and on-device pitfalls (English)
-docs/DESIGN.zh-CN.md    # same (简体中文)
+docs/PITFALLS.md        # OpenWrt traps / maintainer gotchas (English)
+docs/PITFALLS.zh-CN.md  # same (简体中文)
 net/gotify/             # package feed + procd files
 net/gotify-zh/          # Chinese UI variant (shares files/)
 luci-app-gotify/        # optional LuCI app (server.env editor, no Gotify UCI)
@@ -124,6 +128,14 @@ scripts/                # Dockerfile, WSL setup, build, pack, verify, branding
 ```
 
 `bin/`, `build/`, and `graphify-out/` are not committed. Scripts, `net/gotify/files`, and `luci-app-gotify` are forced to LF.
+
+## Out of scope
+
+- No upstream application code changes (UI patches only on the build copy: zh strings + packager credit)
+- No in-package language switcher / full i18n for Gotify itself
+- No Gotify UCI (`/etc/config/gotify`) in this phase
+- No official plugin `.so` packaging (ABI incompatible with musl/this toolchain)
+- No automatic WAN firewall from the main package (optional only via `luci-app-gotify`)
 
 ## License
 

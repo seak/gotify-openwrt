@@ -4,7 +4,7 @@
 
 面向 [OpenWrt](https://openwrt.org/) 的独立 [Gotify](https://gotify.net/) 打包。基于官方 [gotify/server](https://github.com/gotify/server) 构建 **musl 静态**二进制，并打成 `.ipk`。不修改上游应用代码。
 
-设计说明与设备上的注意事项：[docs/DESIGN.zh-CN.md](docs/DESIGN.zh-CN.md)。
+OpenWrt 常见陷阱与维护注意点：[docs/PITFALLS.zh-CN.md](docs/PITFALLS.zh-CN.md)。
 
 ## 为什么需要这个仓库
 
@@ -40,6 +40,8 @@
 |----------|--------|-----|
 | `en`（默认） | `gotify` | 英文（上游） |
 | `zh` | `gotify-zh` | 中文（[`patches/ui-zh`](patches/ui-zh)） |
+
+两个软件包都会在 Web UI 顶栏加入更淡的 `seak/gotify-openwrt` 署名（构建时写入，不替代 Gotify）。`gotify-zh` 与 `gotify` 相互 `Conflicts`，并 `Provides: gotify`。无运行时语言切换。
 
 源码默认使用同级目录 `../gotify-server` 的对应 tag。版本仅来自 [`VERSION`](VERSION)，通过 `-X main.Version` 注入（缺失或为 `unknown` 时构建失败）。
 
@@ -99,14 +101,16 @@ opkg install /tmp/luci-app-gotify_<ver>_all.ipk
 | 路径 | 作用 |
 |------|------|
 | `/usr/bin/gotify` | musl 静态二进制（内嵌 Web UI） |
-| `/etc/gotify/server.env` | 配置（conffile） |
+| `/etc/gotify/server.env` | 配置（conffile；基于环境变量，非 YAML `config.yml`） |
 | `/etc/gotify/data/` | 数据库、图片、插件（overlay；重启后保留） |
 | `/etc/init.d/gotify` | procd 服务 |
 | LuCI → 服务 → Gotify | 可选：编辑 `server.env`、启停、WAN 防火墙开关 |
 
-Web UI：`http://<路由器IP>:8080`。默认账号 `admin` / `admin`——首次登录后请修改。仅依赖 `ca-bundle`。
+Web UI：`http://<路由器IP>:8080`（端口 **8080**，避开占用 80 的 LuCI/`uhttpd`）。默认账号 `admin` / `admin`——首次登录后请修改。仅依赖 `ca-bundle`。
 
-在 OpenWrt 上，`/var` → `/tmp`（tmpfs），因此数据不能放在 `/var` 下。本软件包通过 procd 环境变量强制使用 `/etc/gotify/data`，并在 `postinst` 中迁移旧的 `/var|/tmp` 路径。主包不添加防火墙规则；`luci-app-gotify` 可按需开启 WAN 规则。官方插件 `.so` 与本构建 ABI 不兼容。
+在 OpenWrt 上，`/var` → `/tmp`（tmpfs），因此数据不能放在 `/var` 下。init 会强制将 `GOTIFY_DATABASE_CONNECTION`、`GOTIFY_UPLOADEDIMAGESDIR`、`GOTIFY_PLUGINSDIR` 指向 `/etc/gotify/data`（进程环境优先于 `server.env`）；`postinst` 会迁移旧的 `/var|/tmp` 路径。若数据仍落在 `/tmp`，见 [docs/PITFALLS.zh-CN.md](docs/PITFALLS.zh-CN.md)。
+
+`luci-app-gotify` **不**引入 Gotify UCI（`/etc/config/gotify`）；通过 rpcd 读写 `server.env`，并可按需创建名为 `gotify` 的 firewall UCI 规则以开放 WAN（默认关闭）。不在 LuCI 内管理消息/应用/客户端——使用 Gotify Web UI。
 
 ## 目录结构
 
@@ -114,8 +118,8 @@ Web UI：`http://<路由器IP>:8080`。默认账号 `admin` / `admin`——首�
 LICENSE                 # 本仓库打包内容的 MIT 许可
 VERSION                 # 上游版本钉扎
 CHANGELOG.md            # 软件包产物与打包变更
-docs/DESIGN.md          # 设计说明（英文）
-docs/DESIGN.zh-CN.md    # 设计说明（简体中文）
+docs/PITFALLS.md        # OpenWrt 陷阱 / 维护注意点（英文）
+docs/PITFALLS.zh-CN.md  # 同上（简体中文）
 net/gotify/             # 软件包 feed + procd 文件
 net/gotify-zh/          # 中文 UI 变体（共享 files/）
 luci-app-gotify/        # 可选 LuCI 应用（编辑 server.env，无 Gotify UCI）
@@ -124,6 +128,14 @@ scripts/                # Dockerfile、WSL 工具链、构建、打包、校验�
 ```
 
 `bin/`、`build/` 与 `graphify-out/` 不纳入版本控制。脚本、`net/gotify/files` 与 `luci-app-gotify` 强制使用 LF 换行。
+
+## 明确不在范围内
+
+- 不修改上游应用代码（UI 补丁仅作用于构建副本：中文文案 + 打包署名）
+- 无 Gotify 应用内语言切换 / 完整 i18n 框架
+- 本阶段无 Gotify UCI（`/etc/config/gotify`）
+- 不打包官方插件 `.so`（与 musl/本工具链 ABI 不兼容）
+- 主包不自动添加 WAN 防火墙（仅可通过 `luci-app-gotify` 可选开启）
 
 ## 许可证
 
